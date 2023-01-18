@@ -15,18 +15,38 @@ const PAT = 'a2b6797e58284e77b82fe367c013b00c';
 const APP_ID = 'my-first-application';
 // Change these to whatever model and image URL you want to use
 const MODEL_ID = 'face-detection';
-const MODEL_VERSION_ID = '6dc7e46bc9124c5c8824be4822abe105';    
+// const MODEL_VERSION_ID = '6dc7e46bc9124c5c8824be4822abe105';    
+
+const initialState = {
+    input: '',
+    imageUrl: '',
+    box: {},
+    route: 'signin',
+    isSignedIn: false,
+    user: {
+        id: '',
+        name: '',
+        email: '',
+        entries: '0',
+        joined: ''
+    }
+}
 
 class App extends Component {
     constructor() {
         super();
-        this.state = {
-            input: '',
-            imageUrl: '',
-            box: {},
-            route: 'signin',
-            isSignedIn: false
-        }
+        this.state = initialState;
+    }
+
+    loadUser = (data) => {
+        this.setState({user: {
+            id: data.id,
+            name: data.name,
+            email: data.email,
+            entries: data.entries,
+            joined: data.joined
+            }
+        });
     }
 
     calculateFaceLocation = (data) => {
@@ -85,15 +105,31 @@ class App extends Component {
         // https://api.clarifai.com/v2/models/{YOUR_MODEL_ID}/outputs
         // this will default to the latest version_id
 
-        fetch("https://api.clarifai.com/v2/models/" + MODEL_ID + "/versions/" + MODEL_VERSION_ID + "/outputs", requestOptions)
-        .then(response => response.json())
-        .then(result => this.displayFaceBox(this.calculateFaceLocation(result)))
+        fetch("https://api.clarifai.com/v2/models/" + MODEL_ID + "/outputs", requestOptions)
+        .then((response) => response.json())
+        .then((result) => {
+            this.displayFaceBox(this.calculateFaceLocation(result));
+            if (result) {
+                fetch('http://localhost:3000/image', {
+                    method: 'put',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        id: this.state.user.id
+                    })
+                })
+                .then(response => response.json())
+                .then(count => {
+                    this.setState(Object.assign(this.state.user, { entries: count }));
+                })
+                .catch(console.log);
+            }   
+        })
         .catch(error => console.log('error', error));
     }
 
     onRouteChange = (route) => {
         if (route === 'signout') {
-            this.setState({isSignedIn: false});
+            this.setState(initialState);
         } else if (route === 'home') {
             this.setState({isSignedIn: true});
         }
@@ -109,7 +145,7 @@ class App extends Component {
                 { route === 'home' 
                     ? <div>
                         <Logo />
-                        <Rank />
+                        <Rank name = {this.state.user.name} entries = {this.state.user.entries} />
                         <ImageLinkForm 
                             onInputChange={this.onInputChange} 
                             onButtonSubmit={this.onButtonSubmit}
@@ -118,8 +154,8 @@ class App extends Component {
                     </div>
                     : (
                         route === 'signin' 
-                        ? <Signin onRouteChange ={this.onRouteChange}/>
-                        : <Register onRouteChange ={this.onRouteChange}/>
+                        ? <Signin loadUser = {this.loadUser} onRouteChange = {this.onRouteChange}/>
+                        : <Register loadUser = {this.loadUser} onRouteChange = {this.onRouteChange}/>
                     )
                 }
             </div>
